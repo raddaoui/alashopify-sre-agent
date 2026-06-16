@@ -177,10 +177,10 @@ what the service actually does**. Answer naturally; it extracts the details. For
 this demo, reply with something like:
 
 > "We're the SRE team for the **alashopify** app — an e-commerce app running in
-> AKS (`ala-shopify-aks`, namespace `shopdemo`). Checkout reliability is our
-> priority. On-call is a weekly rotation, alerts come from Azure Monitor via the
-> `shop-sre-ag` action group, and escalation goes to the senior on-call, then the
-> team lead."
+> AKS (`ala-shopify-aks`, namespace `shopdemo`). We own the whole app and all of
+> its microservices. On-call is a weekly rotation, alerts come from Azure Monitor
+> via the `shop-sre-ag` action group, and escalation goes to the senior on-call,
+> then the team lead."
 
 The agent confirms and saves this to memory (team name, services owned, on-call
 rotation, escalation path).
