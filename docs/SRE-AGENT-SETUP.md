@@ -99,19 +99,25 @@ the **Full setup** wizard, use this section to validate scopes and permissions.
 
 ### 3a. Grant observability (read) access — do this first
 
-Grant at the **resource group** scope so the agent sees the whole workload:
+You grant this access **inside the agent setup**, during **Connect Azure
+resources**, not from the resource group's IAM blade. This is where you choose
+**Reader** for read-only monitoring.
 
-1. Portal → `ala-shopify-rg` → **Access control (IAM)** → **Add role assignment**.
-2. Assign these roles to the SRE Agent's managed identity
-   (`alashopify-sre-agent`):
-   - **Reader** — on `ala-shopify-rg` (see all resources).
-   - **Monitoring Reader** — read metrics/alerts.
-   - **Log Analytics Reader** — query `ala-shopify-logs`.
-   - **Azure Kubernetes Service Cluster User Role** — read AKS / run read-only
-     `kubectl` (get pods, logs, describe).
-3. **Review + assign**.
+1. In the agent → **Connect Azure resources** → **Add resource groups**.
+2. **Select resource groups** → choose `ala-shopify-rg` (the agent can monitor
+   across RGs once added).
+3. **View agent permissions** → set **Permission level** to:
+   - **Reader** — *read-only access. Agent can view resources and metrics but
+     cannot make changes.* **Choose this for Review mode.**
+   - **Privileged** — read **and** write access (diagnose + perform
+     remediation). Don't choose this yet — see §3c and §6.
+4. The wizard lists the **roles to be granted** for the level you picked
+   (e.g. Reader, Monitoring Reader, Log Analytics Reader). Required roles are
+   **granted automatically** when you add the resource group — you don't assign
+   them manually.
+5. Click **Add resource group**.
 
-CLI equivalent (bash):
+CLI equivalent (bash) — only if you need to assign a role manually:
 
 ```bash
 RG=ala-shopify-rg
