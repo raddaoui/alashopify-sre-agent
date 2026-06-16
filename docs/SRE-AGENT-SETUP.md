@@ -95,11 +95,6 @@ agent can correlate incidents with commits/branches and draft fixes. In the
 setup → **Code**, pick your provider, authorize access, and select the
 `alashopify` repository.
 
-> The k8s deployments are stamped with `sre-demo.deploy/branch` and
-> `sre-demo.deploy/commit` annotations. The agent uses these to map a running
-> pod back to the exact branch + commit in your repo. In Review mode the agent
-> drafts an issue / PR and shows the diff — nothing is merged without a human.
-
 ### 3b. Connect the incident management platform
 
 Connect your incident/alerting source so fired alerts reach the agent:
@@ -160,7 +155,7 @@ the **narrowest** role for the actions you intend to allow, for example:
 Give the on-call team access to the agent and route its notifications to where
 they already work.
 
-### 5a. People & roles (Azure RBAC on the agent resource)
+### 4a. People & roles (Azure RBAC on the agent resource)
 
 Agent resource → **Access control (IAM)** → **Add role assignment**:
 
@@ -173,7 +168,7 @@ Agent resource → **Access control (IAM)** → **Add role assignment**:
 Assign by **Microsoft Entra group** (e.g. `shop-oncall`) rather than individuals
 so onboarding/offboarding is one membership change.
 
-### 5b. Notifications
+### 4b. Notifications
 
 In the agent → **Notifications** (and/or via the `shop-sre-ag` action group):
 
@@ -182,7 +177,7 @@ In the agent → **Notifications** (and/or via the `shop-sre-ag` action group):
   channel so proposals appear where the team triages.
 - Optional: **webhook** to your ITSM/ticketing tool.
 
-### 5c. Approval policy
+### 4c. Approval policy
 
 Define who can approve what (this gates everything in Review mode):
 
@@ -192,7 +187,7 @@ Define who can approve what (this gates everything in Review mode):
 4. (Optional) Require **two** approvers for destructive categories (delete,
    scale-to-zero, DB changes).
 
-### 5d. Onboarding checklist (per new team member)
+### 4d. Onboarding checklist (per new team member)
 
 - [ ] Added to the `shop-oncall` Entra group.
 - [ ] Can open the agent in the portal and see the incident list.
@@ -278,7 +273,7 @@ Other useful schedules:
 This walks through the demo's injected fault: the checkout path runs a slow DB
 query and intermittently throws, producing ~600 ms latency and HTTP 500s.
 
-### 8a. Trigger
+### 7a. Trigger
 One of the alert rules fires and notifies the `shop-sre-ag` action group:
 
 | Alert rule | Condition | Severity |
@@ -289,7 +284,7 @@ One of the alert rules fires and notifies the `shop-sre-ag` action group:
 
 The action group hands the alert to the SRE Agent, which **opens an incident**.
 
-### 8b. What the agent does automatically (Review mode)
+### 7b. What the agent does automatically (Review mode)
 1. **Triages** the alert and assembles context: which service, since when, blast
    radius.
 2. **Investigates** read-only:
@@ -302,7 +297,7 @@ The action group hands the alert to the SRE Agent, which **opens an incident**.
 4. **Writes a root-cause analysis** with evidence (timestamps, the dominant
    span, the failing query/exception, the suspect commit).
 
-### 8c. What needs your approval (Review mode)
+### 7c. What needs your approval (Review mode)
 The agent **proposes** remediation and waits:
 - *Immediate mitigation* — e.g. roll back `orders` to the last-known-good
   image/commit, **or** scale out to dilute impact.
@@ -312,11 +307,11 @@ The agent **proposes** remediation and waits:
 You review the proposal, then **Approve** (agent executes the approved step) or
 **Reject** (and optionally tell it what to do instead). Every step is logged.
 
-### 8d. Verification & close
+### 7d. Verification & close
 After an approved mitigation the agent re-checks the same signals (5xx rate, p95)
 and confirms recovery, then summarizes the timeline and closes the incident.
 
-### 8e. Where to watch it
+### 7e. Where to watch it
 - **Azure portal → Monitor → Alerts** — the fired alerts.
 - **Agent → Incidents** — the live investigation timeline and proposed actions.
 - **Teams incident channel** — proposals/approvals in-line.
