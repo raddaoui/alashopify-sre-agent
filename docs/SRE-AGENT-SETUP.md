@@ -71,14 +71,22 @@ Roles you'll need to *grant* the agent are covered in §3. Roles **you** need to
    - **Name** — `alashopify-sre-agent`.
    - **Region** — choose a region where the preview is available (co-locating
      with `westus3` keeps latency and data residency simple).
-5. On the **Mode** (or **Operations**) tab:
-   - Set the operating mode to **Review** (also shown as *Read-only* /
-     *Approval required*). **Do not** enable Autonomous yet — see §6.
-6. On the **Tags** tab (optional): add `env=demo`, `owner=<you>`.
-7. **Review + create** → **Create**.
-8. When deployment finishes, click **Go to resource**.
+5. **Review + create** → **Create**.
+6. When deployment finishes, click **Go to resource**.
+7. On the **Setup** screen, choose one:
+  - **Quickstart** — minimal onboarding for a fast trial.
+  - **Full setup** — recommended for real investigations (adds more context).
+8. Choose **Full setup**, then add available context sources:
+  - **Code** (repository connection).
+  - **Logs**.
+  - **Incidents**.
+  - **Azure resources**.
+  - **Knowledge files** (runbooks, architecture notes, SOPs).
+9. After setup completes, in agent settings set operating mode to **Review**
+   (also shown as *Read-only* / *Approval required*). **Do not** enable
+   Autonomous yet — see §6.
 
-> **Mode at creation:** Always create in **Review mode**. You can promote to
+> **Mode after deployment:** Set the agent to **Review mode** first. Promote to
 > Autonomous later, per action type, once you trust the agent's proposals (§6).
 
 ---
@@ -86,7 +94,8 @@ Roles you'll need to *grant* the agent are covered in §3. Roles **you** need to
 ## 3. Connect Azure resources
 
 The agent needs **read** access to observe, and **scoped write** access only for
-the specific actions you later allow it to take.
+the specific actions you later allow it to take. If you already linked these in
+the **Full setup** wizard, use this section to validate scopes and permissions.
 
 ### 3a. Grant observability (read) access — do this first
 
