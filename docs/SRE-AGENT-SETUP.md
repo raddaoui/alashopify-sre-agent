@@ -318,8 +318,12 @@ which sends requests across different paths:
 GATEWAY_IP=$(kubectl get svc gateway -n shopdemo \
   -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
+# download the load-test script, make it executable, and run it
+curl -sSLO https://raw.githubusercontent.com/raddaoui/alashopify/main/scripts/loadtest.sh
+chmod +x loadtest.sh
+
 # usage: loadtest.sh <url> <duration_secs> <concurrency>
-./scripts/loadtest.sh http://$GATEWAY_IP 60 10
+./loadtest.sh http://$GATEWAY_IP 60 10
 ```
 
 Then wait a couple of minutes for the alert evaluation windows to roll up.
@@ -385,7 +389,7 @@ Then wait a couple of minutes for the alert evaluation windows to roll up.
 
 > Quick mental check: step 1 = latency fault (`SLEEP(0.6)`), steps 2–3 = 500
 > fault (missing `platinum` rate). If the alert thresholds don't trip, run
-> `loadtest.sh` again for sustained load.
+> `./loadtest.sh` again for sustained load.
 
 > **Heads-up:** the alerts now exist, but the agent won't act on them on its own
 > yet — you still need to wire up automated incident response so fired alerts are
