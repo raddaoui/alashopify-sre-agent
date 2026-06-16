@@ -171,13 +171,16 @@ The agent updates its memory.
 
 ### 4b. Tell the agent about your team
 
-The agent interviews you about your team structure. Answer naturally — it
-extracts the details. For this demo, share something like:
+The agent opens with a greeting, summarizes what it already found in your
+subscription, and asks an opening question — typically **what your role is and
+what the service actually does**. Answer naturally; it extracts the details. For
+this demo, reply with something like:
 
-> "We're the alashopify SRE team. We own the shop checkout path running in the
-> `shopdemo` namespace on `ala-shopify-aks`. On-call is a weekly rotation, alerts
-> come from Azure Monitor via the `shop-sre-ag` action group, and escalation goes
-> to the senior on-call, then the team lead."
+> "We're the SRE team for the **alashopify** app — an e-commerce app running in
+> AKS (`ala-shopify-aks`, namespace `shopdemo`). Checkout reliability is our
+> priority. On-call is a weekly rotation, alerts come from Azure Monitor via the
+> `shop-sre-ag` action group, and escalation goes to the senior on-call, then the
+> team lead."
 
 The agent confirms and saves this to memory (team name, services owned, on-call
 rotation, escalation path).
