@@ -185,6 +185,22 @@ this demo, reply with something like:
 The agent confirms and saves this to memory (team name, services owned, on-call
 rotation, escalation path).
 
+> **Expect follow-up questions.** Onboarding is a conversation, not a single
+> form. After it maps your repo, cluster, and Azure resources, the agent will ask
+> further questions about your team and your troubleshooting habits — answer them
+> as best you can so its memory is accurate. For example, after we shared the team
+> info above, the agent summarized what it had captured (all 5 components, the
+> checkout critical path, the observability stack, the 3 alert rules, CI/CD and
+> deploy annotations, correlation via `operation_Id` / `cloud_RoleName`, current
+> healthy state) and then asked:
+>
+> 1. *"Are there other team members I should know about — who are the senior
+>    on-call and team lead, and do they have specific areas of expertise?"*
+> 2. *"When something breaks at 2 AM, what's the first thing you personally check
+>    — App Insights traces, or `kubectl get pods`?"*
+>
+> Answer these naturally; the agent folds your replies into its persistent memory.
+
 ### 4c. Share your procedures and knowledge
 
 Tell the agent how your team handles incidents — upload a file or describe it in
