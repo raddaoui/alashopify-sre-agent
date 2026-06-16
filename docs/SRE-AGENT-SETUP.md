@@ -334,12 +334,12 @@ Then wait a couple of minutes for the alert evaluation windows to roll up.
 
    ```bash
    for i in $(seq 1 20); do
-     curl -s -o /dev/null -w "%{http_code} %{time_total}s\n" \
+     time curl -s -o /dev/null -w "%{http_code}\n" \
        -X POST "http://$GATEWAY_IP/api/checkout" \
        -H "Content-Type: application/json" \
        -d '{"user_id":1,"items":[{"product_id":1,"quantity":1}]}'
    done
-   # expect: time_total ~0.6s+ on every call
+   # expect: real ~0.6s+ on every call
    ```
 
 2. **Intermittent 500** — hit a user with ≥15 orders (tier `platinum` → `KeyError`)
@@ -349,7 +349,7 @@ Then wait a couple of minutes for the alert evaluation windows to roll up.
      curl -s -o /dev/null -w "user=$uid %{http_code}\n" \
        -X POST "http://$GATEWAY_IP/api/checkout" \
        -H "Content-Type: application/json" \
-       -d "{\"user_id\":$uid,\"items\":[{\"product_id\":1,\"quantity\":1}]}"
+       -d "{\"user_id\":$uid,\"items\":[{\"product_id\":1,\"quantity\":25}]}"
    done
    # expect: 500 for the high-order-count user(s)
    ```
