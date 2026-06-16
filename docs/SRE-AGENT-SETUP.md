@@ -345,10 +345,11 @@ Then wait a couple of minutes for the alert evaluation windows to roll up.
 2. **Intermittent 500** — hit a user with ≥15 orders (tier `platinum` → `KeyError`)
 
    ```bash
-curl -s -w "\nHTTP Status: %{http_code}\n" \
-  -X POST "http://$GATEWAY_IP/api/checkout" \
-  -H "Content-Type: application/json" \
-  -d '{"user_id":1,"items":[{"product_id":1,"quantity":25}]}'
+   curl -s -w "\nHTTP Status: %{http_code}\n" \
+     -X POST "http://$GATEWAY_IP/api/checkout" \
+     -H "Content-Type: application/json" \
+     -d '{"user_id":1,"items":[{"product_id":1,"quantity":25}]}'
+   # expect: 500 for the high-order-count user
    ```
 
 3. **Orders logs** — see the `KeyError` stack trace
