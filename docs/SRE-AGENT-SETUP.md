@@ -200,6 +200,16 @@ rotation, escalation path).
 >    — App Insights traces, or `kubectl get pods`?"*
 >
 > Answer these naturally; the agent folds your replies into its persistent memory.
+> For this demo you could answer:
+>
+> - *Team members:* "Besides me, the senior on-call is the AKS/networking expert
+>   and the team lead owns the MySQL/data layer and approves risky changes."
+> - *2 AM triage:* "We start with the fired **alert** to see what tripped. If it's
+>   **latency**, we look at **metrics** and the App Insights dependency spans to
+>   find the slow hop. If it's **error codes / 5xx**, we go to the **code** and the
+>   running pods (`kubectl get pods`, `kubectl logs`, `kubectl describe`) and query
+>   **Log Analytics** for the exceptions. **App Insights** is always our most
+>   helpful starting point for tracing a request end-to-end."
 
 ### 4c. Share your procedures and knowledge
 
