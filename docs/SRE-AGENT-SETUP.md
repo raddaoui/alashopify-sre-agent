@@ -492,6 +492,13 @@ fires the agent acts **without you asking**:
 This is the same investigation you ran by hand in §6 — now triggered
 automatically. See §10 for the full end-to-end walk-through.
 
+> **Watch it in the Incidents tab.** Open **Incidents** in the left sidebar to
+> see new and past incidents the agent retrieved, each with its **Alert status**
+> (New / Acknowledged / Resolved) and **Agent status** (Pending user input / In
+> progress / Completed). Click an **alert title** (e.g. `checkout-5xx-rate`) to
+> open the incident and review the agent's **response plan** — the investigation
+> steps it ran and the actions it triggered to fix the issue.
+
 ### 7d. Let the agent act (permissions & guardrails)
 
 By default the agent has **Reader** and can only **propose** fixes. To let it
