@@ -49,7 +49,7 @@ execute a pre-approved set of action types on its own.
 | Resource group holding the workload | `ala-shopify-rg` (region `westus3`) |
 | AKS cluster running the app | `ala-shopify-aks`, namespace `shopdemo` |
 | Telemetry: App Insights + Log Analytics | `ala-shopify-ai`, `ala-shopify-logs` |
-| Azure Monitor alert rules + action group | `shop-sre-ag` + 3 rules (see §7) |
+| Azure Monitor alert rules + action group | `shop-sre-ag` + 3 rules (see §8) |
 | Source repo on GitHub | `https://github.com/raddaoui/alashopify` |
 | Permissions to grant RBAC roles | **Owner** or **User Access Administrator** on the RG/subscription |
 | Microsoft Entra account for each operator | one per team member |
@@ -86,7 +86,7 @@ context to connect:
 - **Full setup** — recommended for real investigations (adds more context).
 
 Choose **Full setup**, then connect the sources below. Once setup is done, set
-the agent to **Review mode** before doing anything else (see §5).
+the agent to **Review mode** before doing anything else (see §6).
 
 ### 3a. Connect code
 
@@ -101,7 +101,7 @@ Connect your incident/alerting source so fired alerts reach the agent:
 
 1. In the setup → **Incidents** (incident management platform).
 2. Connect **Azure Monitor alerts** → select the action group `shop-sre-ag`
-   (this is how fired alerts reach the agent — see §7).
+   (this is how fired alerts reach the agent — see §8).
 3. (Optional) Connect an external platform (e.g. PagerDuty/ServiceNow) if that's
    where your on-call incidents originate.
 
@@ -117,7 +117,7 @@ read-only (Reader)** access for Review mode.
    - **Reader** — *read-only access. Agent can view resources and metrics but
      cannot make changes.* **Choose this for Review mode.**
    - **Privileged** — read **and** write access (diagnose + perform
-     remediation). Don't choose this yet — see §5.
+     remediation). Don't choose this yet — see §6.
 4. The wizard lists the **roles to be granted** for the level you picked
    (e.g. Reader, Monitoring Reader, Log Analytics Reader). Required roles are
    **granted automatically** when you add the resource group — you don't assign
@@ -253,7 +253,65 @@ procedures.
 
 ---
 
-## 5. Operating modes — Review vs Autonomous
+## 5. Complete your setup (get every checkmark green)
+
+If you skipped any data sources during onboarding, finish them now so the agent
+investigates with full context. The **setup page** shows a **progress bar** of
+which sources are configured — return to it anytime by selecting **Complete
+setup** in the status bar.
+
+The setup page has two tabs:
+
+| Tab | Sources |
+|---|---|
+| **Quickstart** | Code, Logs, Deployments, Incidents |
+| **Full setup** | Everything in Quickstart, plus Azure resources and knowledge files |
+
+> If you see *"SRE Agent doesn't know anything about your app and won't be able
+> to answer questions,"* start with **Code** — it has the highest impact on
+> investigation quality.
+
+### 5a. What each source adds
+
+| Source | Connect | What it adds |
+|---|---|---|
+| **Code** *(recommended)* | GitHub or Azure DevOps repo | Reads source files, traces errors to specific lines, spots recent changes. |
+| **Logs** *(recommended)* | Azure Data Explorer (Kusto), Datadog, Splunk, Elasticsearch, Dynatrace, New Relic | Queries logs and correlates entries with code and dependencies. |
+| **Deployments** | Deployment pipeline | Correlates incidents with recent deployments/rollouts. |
+| **Incidents** | Azure Monitor or PagerDuty | Automatically picks up and investigates incoming alerts. |
+| **Azure resources** | Subscriptions or resource groups | Queries metrics, checks resource health, runs Azure CLI commands. |
+| **Knowledge files** | Runbooks, architecture docs | Follows your team's procedures during investigations. |
+
+### 5b. The alashopify checklist
+
+Work down the list until every source shows a green checkmark:
+
+- [x] **Code** — `raddaoui/alashopify` connected in §3a.
+- [ ] **Logs** — if not already green, connect your log source for
+      `ala-shopify-logs`. On the **Logs** card → **Connect**, pick your provider,
+      and point it at the Log Analytics workspace so the agent can query
+      exceptions and traces.
+- [ ] **Deployments** — connect the **GitHub Actions** pipeline for
+      `raddaoui/alashopify` so the agent can correlate incidents with the latest
+      image/commit rollout.
+- [x] **Incidents** — **Azure Monitor** (`shop-sre-ag` action group) connected in
+      §3b.
+- [x] **Azure resources** — `ala-shopify-rg` connected in §3c.
+- [x] **Knowledge files** — our docs (incl. `docs/TROUBLESHOOTING.md`) already
+      live in the connected repo (§4c), so no separate upload is needed.
+
+For any unchecked item, open the matching card on the setup page and select
+**Connect**. The progress bar fills as each source goes green.
+
+### 5c. Return to team onboarding
+
+Your **Team onboarding** thread stays in the **Favorites** sidebar — select it
+to continue the conversation anytime, or type `/learn` in any chat to restart the
+onboarding interview.
+
+---
+
+## 6. Operating modes — Review vs Autonomous
 
 | | **Review mode** (start here) | **Autonomous mode** (promote later) |
 |---|---|---|
@@ -292,7 +350,7 @@ guardrails. You can revert to full Review at any time with the **kill switch**.
 
 ---
 
-## 6. Scheduling a task
+## 7. Scheduling a task
 
 Use schedules for proactive checks (not just reactive alerts).
 
@@ -320,16 +378,16 @@ Other useful schedules:
 
 > In Review mode a scheduled run that finds a problem will **propose** a fix and
 > wait. Promote a schedule to autonomous only for the narrow, reversible actions
-> in §5 (e.g. auto-restart a crash-looped pod found by the hourly check).
+> in §6 (e.g. auto-restart a crash-looped pod found by the hourly check).
 
 ---
 
-## 7. Handling an incident (end-to-end)
+## 8. Handling an incident (end-to-end)
 
 This walks through the demo's injected fault: the checkout path runs a slow DB
 query and intermittently throws, producing ~600 ms latency and HTTP 500s.
 
-### 7a. Trigger
+### 8a. Trigger
 One of the alert rules fires and notifies the `shop-sre-ag` action group:
 
 | Alert rule | Condition | Severity |
@@ -340,7 +398,7 @@ One of the alert rules fires and notifies the `shop-sre-ag` action group:
 
 The action group hands the alert to the SRE Agent, which **opens an incident**.
 
-### 7b. What the agent does automatically (Review mode)
+### 8b. What the agent does automatically (Review mode)
 1. **Triages** the alert and assembles context: which service, since when, blast
    radius.
 2. **Investigates** read-only:
@@ -353,7 +411,7 @@ The action group hands the alert to the SRE Agent, which **opens an incident**.
 4. **Writes a root-cause analysis** with evidence (timestamps, the dominant
    span, the failing query/exception, the suspect commit).
 
-### 7c. What needs your approval (Review mode)
+### 8c. What needs your approval (Review mode)
 The agent **proposes** remediation and waits:
 - *Immediate mitigation* — e.g. roll back `orders` to the last-known-good
   image/commit, **or** scale out to dilute impact.
@@ -363,24 +421,24 @@ The agent **proposes** remediation and waits:
 You review the proposal, then **Approve** (agent executes the approved step) or
 **Reject** (and optionally tell it what to do instead). Every step is logged.
 
-### 7d. Verification & close
+### 8d. Verification & close
 After an approved mitigation the agent re-checks the same signals (5xx rate, p95)
 and confirms recovery, then summarizes the timeline and closes the incident.
 
-### 7e. Where to watch it
+### 8e. Where to watch it
 - **Azure portal → Monitor → Alerts** — the fired alerts.
 - **Agent → Incidents** — the live investigation timeline and proposed actions.
 - **Teams incident channel** — proposals/approvals in-line.
 - **GitHub** `raddaoui/alashopify` — any issue/PR the agent opened.
 
 > **Could this incident be handled autonomously?** The *mitigation* (restart /
-> scale within `shopdemo`) is a good autonomous candidate once proven (§5). The
+> scale within `shopdemo`) is a good autonomous candidate once proven (§6). The
 > *rollback to a different commit* and the *code-fix PR merge* should stay in
 > Review — they change what code runs in production.
 
 ---
 
-## 8. Quick reference
+## 9. Quick reference
 
 | Item | Value |
 |---|---|
