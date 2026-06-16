@@ -255,59 +255,21 @@ procedures.
 
 ## 5. Complete your setup (get every checkmark green)
 
-If you skipped any data sources during onboarding, finish them now so the agent
-investigates with full context. The **setup page** shows a **progress bar** of
-which sources are configured — return to it anytime by selecting **Complete
-setup** in the status bar.
+Return to the **setup page** (select **Complete setup** in the status bar) and
+connect any remaining sources so the progress bar is full. For alashopify:
 
-The setup page has two tabs:
+- [x] **Code** — `raddaoui/alashopify` (§3a).
+- [ ] **Logs** — connect the **Logs** card to `ala-shopify-logs` so the agent can
+      query exceptions and traces.
+- [ ] **Deployments** — connect the **GitHub Actions** pipeline to correlate
+      incidents with the latest image/commit.
+- [x] **Incidents** — Azure Monitor / `shop-sre-ag` (§3b).
+- [x] **Azure resources** — `ala-shopify-rg` (§3c).
+- [x] **Knowledge files** — our docs live in the connected repo (§4c), no upload
+      needed.
 
-| Tab | Sources |
-|---|---|
-| **Quickstart** | Code, Logs, Deployments, Incidents |
-| **Full setup** | Everything in Quickstart, plus Azure resources and knowledge files |
-
-> If you see *"SRE Agent doesn't know anything about your app and won't be able
-> to answer questions,"* start with **Code** — it has the highest impact on
-> investigation quality.
-
-### 5a. What each source adds
-
-| Source | Connect | What it adds |
-|---|---|---|
-| **Code** *(recommended)* | GitHub or Azure DevOps repo | Reads source files, traces errors to specific lines, spots recent changes. |
-| **Logs** *(recommended)* | Azure Data Explorer (Kusto), Datadog, Splunk, Elasticsearch, Dynatrace, New Relic | Queries logs and correlates entries with code and dependencies. |
-| **Deployments** | Deployment pipeline | Correlates incidents with recent deployments/rollouts. |
-| **Incidents** | Azure Monitor or PagerDuty | Automatically picks up and investigates incoming alerts. |
-| **Azure resources** | Subscriptions or resource groups | Queries metrics, checks resource health, runs Azure CLI commands. |
-| **Knowledge files** | Runbooks, architecture docs | Follows your team's procedures during investigations. |
-
-### 5b. The alashopify checklist
-
-Work down the list until every source shows a green checkmark:
-
-- [x] **Code** — `raddaoui/alashopify` connected in §3a.
-- [ ] **Logs** — if not already green, connect your log source for
-      `ala-shopify-logs`. On the **Logs** card → **Connect**, pick your provider,
-      and point it at the Log Analytics workspace so the agent can query
-      exceptions and traces.
-- [ ] **Deployments** — connect the **GitHub Actions** pipeline for
-      `raddaoui/alashopify` so the agent can correlate incidents with the latest
-      image/commit rollout.
-- [x] **Incidents** — **Azure Monitor** (`shop-sre-ag` action group) connected in
-      §3b.
-- [x] **Azure resources** — `ala-shopify-rg` connected in §3c.
-- [x] **Knowledge files** — our docs (incl. `docs/TROUBLESHOOTING.md`) already
-      live in the connected repo (§4c), so no separate upload is needed.
-
-For any unchecked item, open the matching card on the setup page and select
-**Connect**. The progress bar fills as each source goes green.
-
-### 5c. Return to team onboarding
-
-Your **Team onboarding** thread stays in the **Favorites** sidebar — select it
-to continue the conversation anytime, or type `/learn` in any chat to restart the
-onboarding interview.
+> Tip: your **Team onboarding** thread stays in the **Favorites** sidebar — open
+> it anytime, or type `/learn` to restart the interview.
 
 ---
 
