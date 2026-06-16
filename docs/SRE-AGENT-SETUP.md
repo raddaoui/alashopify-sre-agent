@@ -298,12 +298,98 @@ a user has placed. It introduces **two faults on checkout**:
    `feature/loyalty-discount` selected.
 3. The workflow builds and tags the images and rolls them out to `shopdemo` on
    `ala-shopify-aks`.
-4. Drive some checkout traffic. Within minutes the slow query trips the latency
-   alert and the platinum `KeyError` trips the 5xx alert — both fire into
-   `shop-sre-ag` and hand off to the agent.
 
-> The agent picks up the alerts, correlates them to the loyalty-discount commit,
-> and proposes a fix — see §9 for the end-to-end investigation flow.
+**Generate load so the faults surface:**
+
+Drive realistic traffic against the site — either click around the app manually,
+or run the load-test script
+([scripts/loadtest.sh](https://github.com/raddaoui/alashopify/blob/main/scripts/loadtest.sh)),
+which sends requests across different paths:
+
+```bash
+GATEWAY_IP=$(kubectl get svc gateway -n shopdemo \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+# usage: loadtest.sh <url> <duration_secs> <concurrency>
+./scripts/loadtest.sh http://$GATEWAY_IP 60 10
+```
+
+Then wait a couple of minutes for the alert evaluation windows to roll up.
+
+**Confirm both faults landed:**
+
+1. **Faulty build is live**
+
+   ```bash
+   kubectl get deploy orders -n shopdemo \
+     -o jsonpath='{.metadata.annotations.sre-demo\.deploy/branch}{"  "}{.metadata.annotations.sre-demo\.deploy/commit}{"\n"}'
+   # expect: feature/loyalty-discount  <sha>
+   ```
+
+2. **Latency (~600 ms) on checkout**
+
+   ```bash
+   for i in $(seq 1 20); do
+     curl -s -o /dev/null -w "%{http_code} %{time_total}s\n" \
+       -X POST "http://$GATEWAY_IP/api/checkout" \
+       -H "Content-Type: application/json" \
+       -d '{"user_id":1,"items":[{"product_id":1,"quantity":1}]}'
+   done
+   # expect: time_total ~0.6s+ on every call
+   ```
+
+3. **Intermittent 500** — hit a user with ≥15 orders (tier `platinum` → `KeyError`)
+
+   ```bash
+   for uid in 1 2 3 4 5; do
+     curl -s -o /dev/null -w "user=$uid %{http_code}\n" \
+       -X POST "http://$GATEWAY_IP/api/checkout" \
+       -H "Content-Type: application/json" \
+       -d "{\"user_id\":$uid,\"items\":[{\"product_id\":1,\"quantity\":1}]}"
+   done
+   # expect: 500 for the high-order-count user(s)
+   ```
+
+4. **Orders logs** — see the `KeyError` stack trace
+
+   ```bash
+   kubectl logs -n shopdemo deploy/orders --tail=200 | grep -iE "error|exception|KeyError|traceback"
+   ```
+
+5. **App Insights** (KQL — Logs blade)
+
+   ```kusto
+   // latency + failures on checkout/orders
+   requests
+   | where timestamp > ago(30m)
+   | where name has "checkout" or name has "/orders"
+   | summarize p95=percentile(duration,95), failures=countif(success==false), count() by bin(timestamp,1m)
+   | order by timestamp desc
+
+   // the SLEEP-bound DB dependency span
+   dependencies
+   | where timestamp > ago(30m) and type == "mysql"
+   | summarize p95=percentile(duration,95), count() by name
+   | order by p95 desc
+
+   // the KeyError exceptions
+   exceptions
+   | where timestamp > ago(30m)
+   | where operation_Name has "checkout" or operation_Name has "/orders"
+   | project timestamp, type, outerMessage, operation_Id
+   ```
+
+6. **Alerts fired** — Portal → **Monitor → Alerts** (or
+   `az monitor scheduled-query list -g ala-shopify-rg -o table`):
+   `checkout-high-latency` (Sev2) and `checkout-5xx-rate` (Sev1) should be active.
+
+> Quick mental check: step 2 = latency fault (`SLEEP(0.6)`), steps 3–4 = 500
+> fault (missing `platinum` rate). If the alert thresholds don't trip, run
+> `loadtest.sh` again for sustained load.
+
+> **Heads-up:** the alerts now exist, but the agent won't act on them on its own
+> yet — you still need to wire up automated incident response so fired alerts are
+> handed off to the agent. That's the next step (§7).
 
 ---
 
