@@ -299,6 +299,14 @@ a user has placed. It introduces **two faults on checkout**:
 3. The workflow builds and tags the images and rolls them out to `shopdemo` on
    `ala-shopify-aks`.
 
+**Confirm the faulty build is live:**
+
+```bash
+kubectl get deploy orders -n shopdemo \
+  -o jsonpath='{.metadata.annotations.sre-demo\.deploy/branch}{"  "}{.metadata.annotations.sre-demo\.deploy/commit}{"\n"}'
+# expect: feature/loyalty-discount  <sha>
+```
+
 **Generate load so the faults surface:**
 
 Drive realistic traffic against the site — either click around the app manually,
@@ -318,15 +326,7 @@ Then wait a couple of minutes for the alert evaluation windows to roll up.
 
 **Confirm both faults landed:**
 
-1. **Faulty build is live**
-
-   ```bash
-   kubectl get deploy orders -n shopdemo \
-     -o jsonpath='{.metadata.annotations.sre-demo\.deploy/branch}{"  "}{.metadata.annotations.sre-demo\.deploy/commit}{"\n"}'
-   # expect: feature/loyalty-discount  <sha>
-   ```
-
-2. **Latency (~600 ms) on checkout**
+1. **Latency (~600 ms) on checkout**
 
    ```bash
    for i in $(seq 1 20); do
@@ -338,7 +338,7 @@ Then wait a couple of minutes for the alert evaluation windows to roll up.
    # expect: time_total ~0.6s+ on every call
    ```
 
-3. **Intermittent 500** — hit a user with ≥15 orders (tier `platinum` → `KeyError`)
+2. **Intermittent 500** — hit a user with ≥15 orders (tier `platinum` → `KeyError`)
 
    ```bash
    for uid in 1 2 3 4 5; do
@@ -350,13 +350,13 @@ Then wait a couple of minutes for the alert evaluation windows to roll up.
    # expect: 500 for the high-order-count user(s)
    ```
 
-4. **Orders logs** — see the `KeyError` stack trace
+3. **Orders logs** — see the `KeyError` stack trace
 
    ```bash
    kubectl logs -n shopdemo deploy/orders --tail=200 | grep -iE "error|exception|KeyError|traceback"
    ```
 
-5. **App Insights** (KQL — Logs blade)
+4. **App Insights** (KQL — Logs blade)
 
    ```kusto
    // latency + failures on checkout/orders
@@ -379,11 +379,11 @@ Then wait a couple of minutes for the alert evaluation windows to roll up.
    | project timestamp, type, outerMessage, operation_Id
    ```
 
-6. **Alerts fired** — Portal → **Monitor → Alerts** (or
+5. **Alerts fired** — Portal → **Monitor → Alerts** (or
    `az monitor scheduled-query list -g ala-shopify-rg -o table`):
    `checkout-high-latency` (Sev2) and `checkout-5xx-rate` (Sev1) should be active.
 
-> Quick mental check: step 2 = latency fault (`SLEEP(0.6)`), steps 3–4 = 500
+> Quick mental check: step 1 = latency fault (`SLEEP(0.6)`), steps 2–3 = 500
 > fault (missing `platinum` rate). If the alert thresholds don't trip, run
 > `loadtest.sh` again for sustained load.
 
