@@ -49,7 +49,7 @@ execute a pre-approved set of action types on its own.
 | Resource group holding the workload | `ala-shopify-rg` (region `westus3`) |
 | AKS cluster running the app | `ala-shopify-aks`, namespace `shopdemo` |
 | Telemetry: App Insights + Log Analytics | `ala-shopify-ai`, `ala-shopify-logs` |
-| Azure Monitor alert rules + action group | `shop-sre-ag` + 3 rules (see §9) |
+| Azure Monitor alert rules + action group | `shop-sre-ag` + 3 rules (see §10) |
 | Source repo on GitHub | `https://github.com/raddaoui/alashopify` |
 | Permissions to grant RBAC roles | **Owner** or **User Access Administrator** on the RG/subscription |
 | Microsoft Entra account for each operator | one per team member |
@@ -86,7 +86,7 @@ context to connect:
 - **Full setup** — recommended for real investigations (adds more context).
 
 Choose **Full setup**, then connect the sources below. Once setup is done, set
-the agent to **Review mode** before doing anything else (see §7).
+the agent to **Review mode** before doing anything else (see §8).
 
 ### 3a. Connect code
 
@@ -101,7 +101,7 @@ Connect your incident/alerting source so fired alerts reach the agent:
 
 1. In the setup → **Incidents** (incident management platform).
 2. Connect **Azure Monitor alerts** → select the action group `shop-sre-ag`
-   (this is how fired alerts reach the agent — see §9).
+   (this is how fired alerts reach the agent — see §7).
 3. (Optional) Connect an external platform (e.g. PagerDuty/ServiceNow) if that's
    where your on-call incidents originate.
 
@@ -117,7 +117,7 @@ read-only (Reader)** access for Review mode.
    - **Reader** — *read-only access. Agent can view resources and metrics but
      cannot make changes.* **Choose this for Review mode.**
    - **Privileged** — read **and** write access (diagnose + perform
-     remediation). Don't choose this yet — see §7.
+     remediation). Don't choose this yet — see §8.
 4. The wizard lists the **roles to be granted** for the level you picked
    (e.g. Reader, Monitoring Reader, Log Analytics Reader). Required roles are
    **granted automatically** when you add the resource group — you don't assign
@@ -275,8 +275,8 @@ connect any remaining sources so the progress bar is full. For alashopify:
 
 ## 6. Your first investigation — introduce the fault
 
-To see the agent detect, investigate, and propose a fix end-to-end, deploy a
-faulty feature and let the alerts fire.
+To see the agent investigate, and propose a fix end-to-end, deploy a
+faulty feature and ask the agent to investigate.
 
 The branch
 [raddaoui/alashopify @ feature/loyalty-discount](https://github.com/raddaoui/alashopify/tree/feature/loyalty-discount)
@@ -429,7 +429,81 @@ Watch the agent work through its plan in real time:
 
 ---
 
-## 7. Operating modes — Review vs Autonomous
+## 7. Automate incident response — pick up alerts without asking
+
+In §6 you reactively opened a thread and asked the agent to investigate. Here you
+wire up **Azure Monitor as the incident platform** and add a **response plan** so
+matching alerts are picked up and investigated **automatically** — no message
+required.
+
+### 7a. Connect Azure Monitor as the incident platform
+
+1. Agent → **Builder → Incident platform**.
+2. Open the **Incident platform** dropdown → choose **Azure Monitor** (you can
+   also pick **PagerDuty** or **ServiceNow** here).
+3. Turn **off** the **Quickstart response plan** toggle — you'll create your own
+   in the next step.
+4. Select **Save** and wait for the status to read *"Azure Monitor connected."*
+
+> Connecting a platform auto-creates a default **quickstart** response plan. If
+> you keep it alongside a custom plan, incidents can be processed twice or routed
+> to the wrong place. Go to **Builder → Incident response plans**, switch to
+> **Table view**, and delete the quickstart plan.
+
+### 7b. Create an incident response plan
+
+A response plan tells the agent **which incidents to pick up** and **how much
+autonomy** it has.
+
+1. **Builder → Incident response plans → New incident response plan**.
+2. **Step 1 — incident filters:**
+   - **Name** — e.g. `alashopify-checkout`.
+   - **Severity** — select **Sev 1** and **Sev 2** to catch `checkout-5xx-rate`
+     (Sev 1) and `checkout-high-latency` (Sev 2). Pick **All severity** if you
+     want to catch everything during setup.
+   - *(Optional)* add a **title filter** to narrow scope.
+3. **Step 2 — preview** the matching past incidents (empty if none have fired
+   yet) → **Next**.
+4. **Step 3 — autonomy level:**
+   - **Review** *(recommended to start)* — the agent diagnoses and **waits for
+     your approval** before acting.
+   - **Autonomous** — the agent investigates and **acts independently** (code
+     fixes, container/pod restarts).
+   - Start with **Review**, then **Save**.
+
+Checkpoint: the plan appears in the list with status **On** and your chosen
+autonomy level.
+
+### 7c. What happens now when a checkout alert fires
+
+With the plan on, the next time `checkout-high-latency` or `checkout-5xx-rate`
+fires the agent acts **without you asking**:
+
+1. **Retrieves** the incident from Azure Monitor automatically.
+2. **Searches memory** for similar past incidents and your runbooks
+   (`debugging.md`).
+3. **Builds and executes** an investigation plan, collecting evidence (App
+   Insights, traces, read-only `kubectl`, the deploy annotations).
+4. **Proposes** (Review) or **executes** (Autonomous) the mitigation, then
+   delivers a **remediation summary**: alert, immediate mitigation, permanent fix
+   / pushed branch, root cause with file references, status, and a tracking
+   issue.
+
+This is the same investigation you ran by hand in §6 — now triggered
+automatically. See §10 for the full end-to-end walk-through.
+
+### 7d. Let the agent act (permissions & guardrails)
+
+By default the agent has **Reader** and can only **propose** fixes. To let it
+**execute** mitigations (restart/scale/roll back via `az`/`kubectl`), grant
+**write** on its managed identity — scope it to the resource group
+`ala-shopify-rg` (§3c). Guardrails are always enforced: `delete`/`remove` and
+`az keyvault` commands are blocked, and resources with **ReadOnly** management
+locks can't be modified. Choose how much it does on its own in §8.
+
+---
+
+## 8. Operating modes — Review vs Autonomous
 
 | | **Review mode** (start here) | **Autonomous mode** (promote later) |
 |---|---|---|
@@ -468,7 +542,7 @@ guardrails. You can revert to full Review at any time with the **kill switch**.
 
 ---
 
-## 8. Scheduling a task
+## 9. Scheduling a task
 
 Use schedules for proactive checks (not just reactive alerts).
 
@@ -496,16 +570,16 @@ Other useful schedules:
 
 > In Review mode a scheduled run that finds a problem will **propose** a fix and
 > wait. Promote a schedule to autonomous only for the narrow, reversible actions
-> in §7 (e.g. auto-restart a crash-looped pod found by the hourly check).
+> in §8 (e.g. auto-restart a crash-looped pod found by the hourly check).
 
 ---
 
-## 9. Handling an incident (end-to-end)
+## 10. Handling an incident (end-to-end)
 
 This walks through the demo's injected fault: the checkout path runs a slow DB
 query and intermittently throws, producing ~600 ms latency and HTTP 500s.
 
-### 9a. Trigger
+### 10a. Trigger
 One of the alert rules fires and notifies the `shop-sre-ag` action group:
 
 | Alert rule | Condition | Severity |
@@ -516,7 +590,7 @@ One of the alert rules fires and notifies the `shop-sre-ag` action group:
 
 The action group hands the alert to the SRE Agent, which **opens an incident**.
 
-### 9b. What the agent does automatically (Review mode)
+### 10b. What the agent does automatically (Review mode)
 1. **Triages** the alert and assembles context: which service, since when, blast
    radius.
 2. **Investigates** read-only:
@@ -529,7 +603,7 @@ The action group hands the alert to the SRE Agent, which **opens an incident**.
 4. **Writes a root-cause analysis** with evidence (timestamps, the dominant
    span, the failing query/exception, the suspect commit).
 
-### 9c. What needs your approval (Review mode)
+### 10c. What needs your approval (Review mode)
 The agent **proposes** remediation and waits:
 - *Immediate mitigation* — e.g. roll back `orders` to the last-known-good
   image/commit, **or** scale out to dilute impact.
@@ -539,24 +613,24 @@ The agent **proposes** remediation and waits:
 You review the proposal, then **Approve** (agent executes the approved step) or
 **Reject** (and optionally tell it what to do instead). Every step is logged.
 
-### 9d. Verification & close
+### 10d. Verification & close
 After an approved mitigation the agent re-checks the same signals (5xx rate, p95)
 and confirms recovery, then summarizes the timeline and closes the incident.
 
-### 9e. Where to watch it
+### 10e. Where to watch it
 - **Azure portal → Monitor → Alerts** — the fired alerts.
 - **Agent → Incidents** — the live investigation timeline and proposed actions.
 - **Teams incident channel** — proposals/approvals in-line.
 - **GitHub** `raddaoui/alashopify` — any issue/PR the agent opened.
 
 > **Could this incident be handled autonomously?** The *mitigation* (restart /
-> scale within `shopdemo`) is a good autonomous candidate once proven (§7). The
+> scale within `shopdemo`) is a good autonomous candidate once proven (§8). The
 > *rollback to a different commit* and the *code-fix PR merge* should stay in
 > Review — they change what code runs in production.
 
 ---
 
-## 10. Quick reference
+## 11. Quick reference
 
 | Item | Value |
 |---|---|
