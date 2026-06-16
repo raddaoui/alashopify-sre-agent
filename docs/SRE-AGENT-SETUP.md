@@ -71,46 +71,52 @@ Roles you'll need to *grant* the agent are covered in §3. Roles **you** need to
    - **Name** — `alashopify-sre-agent`.
    - **Region** — choose a region where the preview is available (co-locating
      with `westus3` keeps latency and data residency simple).
-5. **Review + create** → **Create**.
-6. When deployment finishes, click **Go to resource**.
-7. On the **Setup** screen, choose one:
-  - **Quickstart** — minimal onboarding for a fast trial.
-  - **Full setup** — recommended for real investigations (adds more context).
-8. Choose **Full setup**, then add available context sources:
-  - **Code** (repository connection).
-  - **Logs**.
-  - **Incidents**.
-  - **Azure resources**.
-  - **Knowledge files** (runbooks, architecture notes, SOPs).
-9. After setup completes, in agent settings set operating mode to **Review**
-   (also shown as *Read-only* / *Approval required*). **Do not** enable
-   Autonomous yet — see §6.
-
-> **Mode after deployment:** Set the agent to **Review mode** first. Promote to
-> Autonomous later, per action type, once you trust the agent's proposals (§6).
+5. **Review + create** → **Create**. When deployment finishes, click
+   **Go to resource** — the agent opens the **Setup** screen, which continues in
+   §3.
 
 ---
 
-## 3. Connect Azure resources
+## 3. Connect resources (agent setup)
 
-The agent needs **read** access to observe, and **scoped write** access only for
-the specific actions you later allow it to take. If you already linked these in
-the **Full setup** wizard, use this section to validate scopes and permissions.
+After **Go to resource**, the agent's **Setup** screen lets you choose how much
+context to connect:
 
-### 3a. Grant observability (read) access — do this first
+- **Quickstart** — minimal onboarding for a fast trial.
+- **Full setup** — recommended for real investigations (adds more context).
 
-You grant this access **inside the agent setup**, during **Connect Azure
-resources**, not from the resource group's IAM blade. This is where you choose
-**Reader** for read-only monitoring.
+Choose **Full setup**, then connect the sources below. Once setup is done, set
+the agent to **Review mode** before doing anything else (see §6).
 
-1. In the agent → **Connect Azure resources** → **Add resource groups**.
+### 3a. Connect code
+
+Connect the source repository so the agent can correlate incidents with
+commits/branches and draft fixes. This is the **Code** context source. Full
+GitHub connection steps and permissions are in §4.
+
+### 3b. Connect the incident management platform
+
+Connect your incident/alerting source so fired alerts reach the agent:
+
+1. In the setup → **Incidents** (incident management platform).
+2. Connect **Azure Monitor alerts** → select the action group `shop-sre-ag`
+   (this is how fired alerts reach the agent — see §8).
+3. (Optional) Connect an external platform (e.g. PagerDuty/ServiceNow) if that's
+   where your on-call incidents originate.
+
+### 3c. Connect Azure resources (read access)
+
+This is where you grant the agent access to your Azure resources and **specify
+read-only (Reader)** access for Review mode.
+
+1. In the setup → **Azure resources** → **Add resource groups**.
 2. **Select resource groups** → choose `ala-shopify-rg` (the agent can monitor
    across RGs once added).
 3. **View agent permissions** → set **Permission level** to:
    - **Reader** — *read-only access. Agent can view resources and metrics but
      cannot make changes.* **Choose this for Review mode.**
    - **Privileged** — read **and** write access (diagnose + perform
-     remediation). Don't choose this yet — see §3c and §6.
+     remediation). Don't choose this yet — see §3e and §6.
 4. The wizard lists the **roles to be granted** for the level you picked
    (e.g. Reader, Monitoring Reader, Log Analytics Reader). Required roles are
    **granted automatically** when you add the resource group — you don't assign
@@ -133,18 +139,16 @@ for ROLE in "Reader" "Monitoring Reader" "Log Analytics Reader" \
 done
 ```
 
-### 3b. Connect the telemetry sources
+### 3d. Connect the telemetry sources
 
 In the agent resource → **Connections** (or **Data sources**):
 
 1. **Add** → **Application Insights** → select `ala-shopify-ai`.
 2. **Add** → **Log Analytics workspace** → select `ala-shopify-logs`.
-3. **Add** → **Azure Monitor alerts** → select the action group `shop-sre-ag`
-   (this is how fired alerts reach the agent — see §8).
-4. **Add** → **Azure Kubernetes Service** → select `ala-shopify-aks`, namespace
+3. **Add** → **Azure Kubernetes Service** → select `ala-shopify-aks`, namespace
    `shopdemo`.
 
-### 3c. Scoped action (write) access — keep minimal in Review mode
+### 3e. Scoped action (write) access — keep minimal in Review mode
 
 In Review mode the agent only *proposes* changes, but the approved action still
 executes under the agent's identity, so it needs permission to perform it. Grant
