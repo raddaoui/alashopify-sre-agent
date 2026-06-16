@@ -123,22 +123,6 @@ read-only (Reader)** access for Review mode.
    them manually.
 5. Click **Add resource group**.
 
-CLI equivalent (bash) — only if you need to assign a role manually:
-
-```bash
-RG=ala-shopify-rg
-AGENT_OID=$(az resource show \
-  -g "$RG" -n alashopify-sre-agent \
-  --resource-type "Microsoft.SreAgent/agents" \
-  --query identity.principalId -o tsv)   # property name may vary in preview
-
-for ROLE in "Reader" "Monitoring Reader" "Log Analytics Reader" \
-            "Azure Kubernetes Service Cluster User Role"; do
-  az role assignment create --assignee "$AGENT_OID" \
-    --role "$ROLE" --resource-group "$RG"
-done
-```
-
 ### 3d. Connect the telemetry sources
 
 In the agent resource → **Connections** (or **Data sources**):
