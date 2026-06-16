@@ -345,17 +345,16 @@ Then wait a couple of minutes for the alert evaluation windows to roll up.
 2. **Intermittent 500** — hit a user with ≥15 orders (tier `platinum` → `KeyError`)
 
    ```bash
-   curl -s -o /dev/null -w "%{http_code}\n" \
-     -X POST "http://$GATEWAY_IP/api/checkout" \
-     -H "Content-Type: application/json" \
-     -d '{"user_id":1,"items":[{"product_id":1,"quantity":25}]}'
-   # expect: 500 for the high-order-count user
+curl -s -w "\nHTTP Status: %{http_code}\n" \
+  -X POST "http://$GATEWAY_IP/api/checkout" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":1,"items":[{"product_id":1,"quantity":25}]}'
    ```
 
 3. **Orders logs** — see the `KeyError` stack trace
 
    ```bash
-   kubectl logs -n shopdemo deploy/orders --tail=200 | grep -iE "error|exception|KeyError|traceback"
+   kubectl logs -n shopdemo deploy/orders --tail=200 | grep -iEC5 "error|exception|KeyError|traceback"
    ```
 
 4. **App Insights** (KQL — Logs blade)
@@ -376,9 +375,9 @@ Then wait a couple of minutes for the alert evaluation windows to roll up.
 
    // the KeyError exceptions
    exceptions
-   | where timestamp > ago(30m)
-   | where operation_Name has "checkout" or operation_Name has "/orders"
-   | project timestamp, type, outerMessage, operation_Id
+    | where timestamp > ago(30m)
+    | where cloud_RoleName contains "orders"
+    | project timestamp, type, outerMessage, details, operation_Id
    ```
 
 5. **Alerts fired** — Portal → **Monitor → Alerts** (or
@@ -388,6 +387,40 @@ Then wait a couple of minutes for the alert evaluation windows to roll up.
 > Quick mental check: step 1 = latency fault (`SLEEP(0.6)`), steps 2–3 = 500
 > fault (missing `platinum` rate). If the alert thresholds don't trip, run
 > `./loadtest.sh` again for sustained load.
+
+**Ask the agent to investigate:**
+
+Now that you've manually confirmed the faults, hand them to the agent and watch
+it diagnose the root cause from your code, Azure resources, and the knowledge
+files it built during onboarding.
+
+1. In the agent, select **New chat thread** (left sidebar).
+2. Describe the problem — be specific about the service and resource group. For
+   example:
+
+   > "Checkout on alashopify is slow and intermittently returning 500s. The
+   > `orders` service in resource group `ala-shopify-rg` (namespace `shopdemo`
+   > on `ala-shopify-aks`) started misbehaving after a recent deploy. Checkout
+   > p95 latency is ~600 ms and some requests fail with a 500. Can you
+   > investigate the root cause and recommend a fix?"
+
+3. Select **Send**.
+
+Watch the agent work through its plan in real time:
+
+- **Read context** — reads `architecture.md`, `team.md`, and `debugging.md` from
+  the connected repo to orient itself.
+- **Explore code** — traces checkout/orders code paths and finds the
+  loyalty-discount changes (`_loyalty_discount()` and `_loyalty_tier()`).
+- **Query Azure resources** — runs read-only `kubectl`/CLI and KQL to inspect
+  pod state, recent deploy, latency, and the `KeyError` exceptions.
+- **Deliver the diagnosis** — root cause with file/line references, evidence
+  (log snippets + metrics), and a recommended fix (the slow `SLEEP(0.6)` query
+  and the missing `platinum` entry in `LOYALTY_RATES`).
+
+> Tip: you can also point it straight at a symptom, e.g. *"We're seeing 5xx
+> errors on checkout — can you investigate?"* or *"What recent changes were
+> deployed to the orders service?"*
 
 > **Heads-up:** the alerts now exist, but the agent won't act on them on its own
 > yet — you still need to wire up automated incident response so fired alerts are
