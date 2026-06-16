@@ -213,17 +213,21 @@ rotation, escalation path).
 
 ### 4c. Share your procedures and knowledge
 
-Tell the agent how your team handles incidents — upload a file or describe it in
-chat:
+If you have any **design docs, troubleshooting docs, or wikis**, you can upload
+them here so the agent learns your procedures — select the **+** in the chat
+input → **Attach file** → choose a Markdown, PDF, or text file.
 
-- **Upload a file** — select the **+** in the chat input → **Attach file** →
-  choose a Markdown, PDF, or text runbook (e.g. `docs/TROUBLESHOOTING.md` from
-  `raddaoui/alashopify`).
-- **Or describe it in chat**, e.g.:
+> **For this demo you can skip the upload.** Our docs (including
+> `docs/TROUBLESHOOTING.md`) already live in the **code repo we attached in
+> §3a** (`raddaoui/alashopify`), so the agent reads them automatically — there's
+> no need to re-upload them.
 
-  > "When checkout latency spikes, first check the App Insights dependency span
-  > for the MySQL query, then verify the `orders` deployment's recent
-  > image/commit, then check pod restarts in `shopdemo`."
+If your docs *aren't* in the repo, you can also just describe a procedure in
+chat, e.g.:
+
+> "When checkout latency spikes, first check the App Insights dependency span
+> for the MySQL query, then verify the `orders` deployment's recent
+> image/commit, then check pod restarts in `shopdemo`."
 
 The agent extracts the steps and saves them to persistent memory.
 
