@@ -117,7 +117,7 @@ read-only (Reader)** access for Review mode.
    - **Reader** — *read-only access. Agent can view resources and metrics but
      cannot make changes.* **Choose this for Review mode.**
    - **Privileged** — read **and** write access (diagnose + perform
-     remediation). Don't choose this yet — see §3e and §5.
+     remediation). Don't choose this yet — see §5.
 4. The wizard lists the **roles to be granted** for the level you picked
    (e.g. Reader, Monitoring Reader, Log Analytics Reader). Required roles are
    **granted automatically** when you add the resource group — you don't assign
@@ -133,20 +133,8 @@ In the agent resource → **Connections** (or **Data sources**):
 3. **Add** → **Azure Kubernetes Service** → select `ala-shopify-aks`, namespace
    `shopdemo`.
 
-### 3e. Scoped action (write) access — keep minimal in Review mode
-
-In Review mode the agent only *proposes* changes, but the approved action still
-executes under the agent's identity, so it needs permission to perform it. Grant
-the **narrowest** role for the actions you intend to allow, for example:
-
-| Intended action | Minimal role | Scope |
-|---|---|---|
-| Restart / scale a deployment | **Azure Kubernetes Service Cluster User Role** + a namespace RBAC `Role` allowing `patch deployments` | `shopdemo` |
-| Roll back an image tag | same as above | `shopdemo` |
-| Acknowledge/close alerts | **Monitoring Contributor** | `ala-shopify-rg` |
-
-> **Least privilege:** Do **not** grant Contributor on the RG. Add write roles
-> only for the action types you actually want the agent to perform.
+Once everything is connected, click **Done** and go to the agent to start the
+team onboarding (§4).
 
 ---
 
