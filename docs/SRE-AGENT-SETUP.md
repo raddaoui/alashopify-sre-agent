@@ -140,48 +140,83 @@ team onboarding (§4).
 
 ## 4. Team onboarding
 
-Give the on-call team access to the agent and route its notifications to where
-they already work.
+Team onboarding teaches the agent about **your team**, **your procedures**, and
+**your code**. When you selected **Done and go to agent** at the end of §3, the
+agent opens the **Team onboarding** thread — a pinned conversation in your
+**Favorites** sidebar — and starts building knowledge from everything you
+connected.
 
-### 4a. People & roles (Azure RBAC on the agent resource)
+> You can onboard even if you skipped some connections in §3 — the agent works
+> without connected data sources, but the interview is richer when it can read
+> your code and Azure resources.
 
-Agent resource → **Access control (IAM)** → **Add role assignment**:
+### 4a. The agent learns from your connected context
 
-| Team role | Azure role on `alashopify-sre-agent` | Can do |
+As soon as the thread opens, the agent explores what you connected in §3 — you
+don't need to do anything. A progress indicator shows while it works, and you can
+chat in the meantime.
+
+- **Your codebase** — it reads the `alashopify` repo: README, directory
+  structure, frameworks, and dependencies, then shows a summary.
+- **Your Azure resources** — it explores `ala-shopify-rg`: lists services
+  (`ala-shopify-aks`, `ala-shopify-ai`, `ala-shopify-logs`), resource types, and
+  configurations.
+
+If something's missing, just tell it in chat, e.g.:
+
+> "The checkout flow runs in the `orders` deployment in the `shopdemo`
+> namespace, and it talks to a MySQL StatefulSet for order persistence."
+
+The agent updates its memory.
+
+### 4b. Tell the agent about your team
+
+The agent interviews you about your team structure. Answer naturally — it
+extracts the details. For this demo, share something like:
+
+> "We're the alashopify SRE team. We own the shop checkout path running in the
+> `shopdemo` namespace on `ala-shopify-aks`. On-call is a weekly rotation, alerts
+> come from Azure Monitor via the `shop-sre-ag` action group, and escalation goes
+> to the senior on-call, then the team lead."
+
+The agent confirms and saves this to memory (team name, services owned, on-call
+rotation, escalation path).
+
+### 4c. Share your procedures and knowledge
+
+Tell the agent how your team handles incidents — upload a file or describe it in
+chat:
+
+- **Upload a file** — select the **+** in the chat input → **Attach file** →
+  choose a Markdown, PDF, or text runbook (e.g. `docs/TROUBLESHOOTING.md` from
+  `raddaoui/alashopify`).
+- **Or describe it in chat**, e.g.:
+
+  > "When checkout latency spikes, first check the App Insights dependency span
+  > for the MySQL query, then verify the `orders` deployment's recent
+  > image/commit, then check pod restarts in `shopdemo`."
+
+The agent extracts the steps and saves them to persistent memory.
+
+### 4d. Ask the agent what to do next
+
+After onboarding, ask **"What should I do next?"** The agent gives prioritized
+recommendations based on what you've connected and what's still missing (e.g.
+connect more data sources, upload more runbooks, set up incident response).
+
+### 4e. What the agent remembers
+
+Onboarding produces persistent memory files the agent consults during every
+investigation:
+
+| File | Contents | Source |
 |---|---|---|
-| On-call engineer | **SRE Agent Operator** *(or Contributor on the agent)* | View incidents, approve/reject proposed actions |
-| Team lead / approver | **SRE Agent Operator** + approver group (§4c) | Approve high-impact actions |
-| Observer (PM, support) | **Reader** | View incidents & timelines, no approvals |
+| `architecture.md` | Repo structure, frameworks, service dependencies, key code paths | Codebase exploration (§4a) |
+| `team.md` | Team name, size, services owned, on-call rotation, escalation paths | Team interview (§4b) |
+| `debugging.md` | Troubleshooting procedures, runbook steps, known issues | Knowledge sharing (§4c) |
 
-Assign by **Microsoft Entra group** (e.g. `shop-oncall`) rather than individuals
-so onboarding/offboarding is one membership change.
-
-### 4b. Notifications
-
-In the agent → **Notifications** (and/or via the `shop-sre-ag` action group):
-
-- **Email** — the on-call distribution list.
-- **Microsoft Teams** — add the SRE Agent channel connector to your incident
-  channel so proposals appear where the team triages.
-- Optional: **webhook** to your ITSM/ticketing tool.
-
-### 4c. Approval policy
-
-Define who can approve what (this gates everything in Review mode):
-
-1. Agent → **Policies** → **Approvals**.
-2. Create an approver group (e.g. `shop-approvers`) mapped to your Entra group.
-3. Require approval for **all action categories** while in Review mode.
-4. (Optional) Require **two** approvers for destructive categories (delete,
-   scale-to-zero, DB changes).
-
-### 4d. Onboarding checklist (per new team member)
-
-- [ ] Added to the `shop-oncall` Entra group.
-- [ ] Can open the agent in the portal and see the incident list.
-- [ ] Receives a test notification (trigger via §6 scheduled health check).
-- [ ] Has read this guide and the repo runbook
-      (`docs/TROUBLESHOOTING.md` in `raddaoui/alashopify`).
+These persist across sessions — you don't need to re-explain your team or
+procedures.
 
 ---
 
