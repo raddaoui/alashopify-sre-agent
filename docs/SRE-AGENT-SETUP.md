@@ -86,13 +86,19 @@ context to connect:
 - **Full setup** — recommended for real investigations (adds more context).
 
 Choose **Full setup**, then connect the sources below. Once setup is done, set
-the agent to **Review mode** before doing anything else (see §6).
+the agent to **Review mode** before doing anything else (see §5).
 
 ### 3a. Connect code
 
-Connect the source repository so the agent can correlate incidents with
-commits/branches and draft fixes. This is the **Code** context source. Full
-GitHub connection steps and permissions are in §4.
+Connect your source code repository — **GitHub** or **Azure Repos** — so the
+agent can correlate incidents with commits/branches and draft fixes. In the
+setup → **Code**, pick your provider, authorize access, and select the
+`alashopify` repository.
+
+> The k8s deployments are stamped with `sre-demo.deploy/branch` and
+> `sre-demo.deploy/commit` annotations. The agent uses these to map a running
+> pod back to the exact branch + commit in your repo. In Review mode the agent
+> drafts an issue / PR and shows the diff — nothing is merged without a human.
 
 ### 3b. Connect the incident management platform
 
@@ -100,7 +106,7 @@ Connect your incident/alerting source so fired alerts reach the agent:
 
 1. In the setup → **Incidents** (incident management platform).
 2. Connect **Azure Monitor alerts** → select the action group `shop-sre-ag`
-   (this is how fired alerts reach the agent — see §8).
+   (this is how fired alerts reach the agent — see §7).
 3. (Optional) Connect an external platform (e.g. PagerDuty/ServiceNow) if that's
    where your on-call incidents originate.
 
@@ -116,7 +122,7 @@ read-only (Reader)** access for Review mode.
    - **Reader** — *read-only access. Agent can view resources and metrics but
      cannot make changes.* **Choose this for Review mode.**
    - **Privileged** — read **and** write access (diagnose + perform
-     remediation). Don't choose this yet — see §3e and §6.
+     remediation). Don't choose this yet — see §3e and §5.
 4. The wizard lists the **roles to be granted** for the level you picked
    (e.g. Reader, Monitoring Reader, Log Analytics Reader). Required roles are
    **granted automatically** when you add the resource group — you don't assign
@@ -149,32 +155,7 @@ the **narrowest** role for the actions you intend to allow, for example:
 
 ---
 
-## 4. Connect the source code (GitHub)
-
-Code access lets the agent correlate an incident with a likely commit/branch and
-open issues or pull requests with a proposed fix.
-
-1. Agent resource → **Integrations** → **GitHub** → **Connect**.
-2. Authorize the **Azure SRE Agent** GitHub App for the `raddaoui` org/account.
-3. Grant the App access to the **`alashopify`** repository only (least access).
-4. Choose permissions:
-   - **Read** — contents, commits, deployments (required for code-aware RCA).
-   - **Write** — issues and pull requests (so the agent can file an issue or
-     open a fix PR). Leave **direct push to default branch disabled**.
-5. Set the **default branch context** to `main`, and allow the agent to inspect
-   feature branches (e.g. `feature/loyalty-discount`) so it can compare what's
-   deployed vs. `main`.
-
-> The k8s deployments are stamped with `sre-demo.deploy/branch` and
-> `sre-demo.deploy/commit` annotations. The agent uses these to map a running
-> pod back to the exact branch + commit in GitHub.
-
-**What the agent does with code access in Review mode:** drafts an issue / PR and
-shows you the diff. **Nothing is merged** without a human approving and merging.
-
----
-
-## 5. Team onboarding
+## 4. Team onboarding
 
 Give the on-call team access to the agent and route its notifications to where
 they already work.
@@ -186,7 +167,7 @@ Agent resource → **Access control (IAM)** → **Add role assignment**:
 | Team role | Azure role on `alashopify-sre-agent` | Can do |
 |---|---|---|
 | On-call engineer | **SRE Agent Operator** *(or Contributor on the agent)* | View incidents, approve/reject proposed actions |
-| Team lead / approver | **SRE Agent Operator** + approver group (§5c) | Approve high-impact actions |
+| Team lead / approver | **SRE Agent Operator** + approver group (§4c) | Approve high-impact actions |
 | Observer (PM, support) | **Reader** | View incidents & timelines, no approvals |
 
 Assign by **Microsoft Entra group** (e.g. `shop-oncall`) rather than individuals
@@ -215,13 +196,13 @@ Define who can approve what (this gates everything in Review mode):
 
 - [ ] Added to the `shop-oncall` Entra group.
 - [ ] Can open the agent in the portal and see the incident list.
-- [ ] Receives a test notification (trigger via §7 scheduled health check).
+- [ ] Receives a test notification (trigger via §6 scheduled health check).
 - [ ] Has read this guide and the repo runbook
       (`docs/TROUBLESHOOTING.md` in `raddaoui/alashopify`).
 
 ---
 
-## 6. Operating modes — Review vs Autonomous
+## 5. Operating modes — Review vs Autonomous
 
 | | **Review mode** (start here) | **Autonomous mode** (promote later) |
 |---|---|---|
@@ -260,7 +241,7 @@ guardrails. You can revert to full Review at any time with the **kill switch**.
 
 ---
 
-## 7. Scheduling a task
+## 6. Scheduling a task
 
 Use schedules for proactive checks (not just reactive alerts).
 
@@ -288,11 +269,11 @@ Other useful schedules:
 
 > In Review mode a scheduled run that finds a problem will **propose** a fix and
 > wait. Promote a schedule to autonomous only for the narrow, reversible actions
-> in §6 (e.g. auto-restart a crash-looped pod found by the hourly check).
+> in §5 (e.g. auto-restart a crash-looped pod found by the hourly check).
 
 ---
 
-## 8. Handling an incident (end-to-end)
+## 7. Handling an incident (end-to-end)
 
 This walks through the demo's injected fault: the checkout path runs a slow DB
 query and intermittently throws, producing ~600 ms latency and HTTP 500s.
@@ -342,13 +323,13 @@ and confirms recovery, then summarizes the timeline and closes the incident.
 - **GitHub** `raddaoui/alashopify` — any issue/PR the agent opened.
 
 > **Could this incident be handled autonomously?** The *mitigation* (restart /
-> scale within `shopdemo`) is a good autonomous candidate once proven (§6). The
+> scale within `shopdemo`) is a good autonomous candidate once proven (§5). The
 > *rollback to a different commit* and the *code-fix PR merge* should stay in
 > Review — they change what code runs in production.
 
 ---
 
-## 9. Quick reference
+## 8. Quick reference
 
 | Item | Value |
 |---|---|
