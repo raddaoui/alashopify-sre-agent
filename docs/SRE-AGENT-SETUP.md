@@ -49,7 +49,7 @@ execute a pre-approved set of action types on its own.
 | Resource group holding the workload | `ala-shopify-rg` (region `westus3`) |
 | AKS cluster running the app | `ala-shopify-aks`, namespace `shopdemo` |
 | Telemetry: App Insights + Log Analytics | `ala-shopify-ai`, `ala-shopify-logs` |
-| Azure Monitor alert rules + action group | `shop-sre-ag` + 3 rules (see §10) |
+| Azure Monitor alert rules + action group | `shop-sre-ag` + 3 rules (`checkout-5xx-rate`, `checkout-high-latency`, `shop-pod-restarts`) |
 | Source repo on GitHub | `https://github.com/raddaoui/alashopify` |
 | Permissions to grant RBAC roles | **Owner** or **User Access Administrator** on the RG/subscription |
 | Microsoft Entra account for each operator | one per team member |
@@ -86,7 +86,8 @@ context to connect:
 - **Full setup** — recommended for real investigations (adds more context).
 
 Choose **Full setup**, then connect the sources below. Once setup is done, set
-the agent to **Review mode** before doing anything else (see §9).
+the agent to **Review mode** before doing anything else (autonomy is configured
+per response plan in §7 and per task in §8).
 
 ### 3a. Connect code
 
@@ -490,7 +491,7 @@ fires the agent acts **without you asking**:
    issue.
 
 This is the same investigation you ran by hand in §6 — now triggered
-automatically. See §10 for the full end-to-end walk-through.
+automatically.
 
 > **Watch it in the Incidents tab.** Open **Incidents** in the left sidebar to
 > see new and past incidents the agent retrieved, each with its **Alert status**
@@ -506,7 +507,8 @@ By default the agent has **Reader** and can only **propose** fixes. To let it
 **write** on its managed identity — scope it to the resource group
 `ala-shopify-rg` (§3c). Guardrails are always enforced: `delete`/`remove` and
 `az keyvault` commands are blocked, and resources with **ReadOnly** management
-locks can't be modified. Choose how much it does on its own in §9.
+locks can't be modified. Choose how much it does on its own per response plan
+(§7) and scheduled task (§8).
 
 ---
 
@@ -546,8 +548,9 @@ The connector shows **Connected**.
 
 1. Agent → **Builder → Agent Canvas → Create → Custom Agent**.
 2. **Name** — `store-readiness-reporter`.
-3. **Instructions** — keep these brief; the per-run "what to check" detail goes
-   in the scheduled task (§8c). For example:
+3. **Instructions** — think of this as the custom agent's **system prompt**: a
+   brief, durable description of its role and goal. Keep it short; the per-run
+   "what to check" detail goes in the scheduled task (§8c). For example:
 
    > "You are the alashopify store-readiness reporter. Check Azure resource
    > health for the app, determine if any capacity is needed, summarize the
@@ -582,7 +585,8 @@ The connector shows **Connected**.
    > Summarize findings and actions taken and email the report to the team."
 
 3. **Agent autonomy** — start in **Review** so the proactive scale-up is proposed
-   for approval; promote to **Autonomous** once you trust it (§9).
+   for approval; promote to **Autonomous** in the task's autonomy setting once
+   you trust it.
 4. **Create task**. It appears on the canvas as **Scheduled task → Custom agent →
    Tool**, and in the **Scheduled tasks** list with status **On** and a **Next
    run** time.
@@ -604,107 +608,203 @@ The connector shows **Connected**.
 
 > Scheduled runs honor the same modes as everything else: in **Review** a task
 > that finds a problem **proposes** a fix and waits; promote a task to
-> **Autonomous** only for the narrow, reversible actions in §9 (e.g. the morning
-> pre-peak scale-up).
+> **Autonomous** only for narrow, reversible actions (e.g. the morning pre-peak
+> scale-up).
 
 ---
 
-## 9. Operating modes — Review vs Autonomous
+## 9. Enterprise readiness
 
-| | **Review mode** (start here) | **Autonomous mode** (promote later) |
+Everything above gets the agent *working*. This section is what makes it
+**enterprise-grade** — the isolation, networking, identity, access control,
+memory, and cost controls you can walk a client through. Each subsection links to
+the authoritative Microsoft Learn page.
+
+### 9a. Execution isolation — the agent's own compute boundary
+
+The SRE Agent's **reasoning engine and tool execution run in separate compute
+boundaries**. Every tool the agent runs (bash, `kubectl`, code analysis, MCP
+tools) executes inside its **own ADC sandbox — an isolated micro VM powered by
+Azure Dedicated Compute (ADC)**, separate from the reasoning loop, and **every
+outbound request is routed through a network proxy**.
+
+| Component | Where it runs | Role |
 |---|---|---|
-| Investigation (read logs, metrics, run read-only `kubectl`, query KQL) | ✅ automatic | ✅ automatic |
-| Root-cause analysis & written summary | ✅ automatic | ✅ automatic |
-| Drafting an issue / fix PR | ✅ draft only | ✅ may open PR automatically |
-| Remediation (restart, scale, roll back image) | ⛔ **requires human approval** | ✅ executes pre-approved action types |
-| Destructive ops (delete, DB change, scale-to-zero) | ⛔ approval (consider 2) | ⛔ keep manual even in autonomous |
+| Agent reasoning | Main runtime | Processes messages, selects tools, builds responses |
+| Tool execution | ADC sandbox (micro VM) | Runs file ops, bash, `kubectl`, code analysis, MCP tools |
+| Identity sidecar | Separate service | Issues short-lived, per-call tokens; isolated from reasoning & execution |
+| Network proxy | Separate service | Validates and routes every outbound request |
 
-### When to promote an action type to Autonomous
+Why it matters for a client:
+- **Fresh process per tool call** — each invocation gets its own environment and
+  the whole process tree is torn down on completion, so one tool call can't see
+  another's credentials or environment.
+- **Secretless** — credentials never enter the reasoning context; the identity
+  sidecar hands a single-use, scoped token to the tool process at call time.
+- **Per-customer isolation** — dedicated sandbox group, separate Cosmos DB,
+  per-agent storage account, per-agent proxy, and a per-agent managed identity.
+  Nothing is shared across agents or customers.
 
-Promote **one narrow action type at a time**, only after it clears this bar:
+See [Security overview for Azure SRE Agent](https://learn.microsoft.com/en-us/azure/sre-agent/security-overview).
 
-1. The agent has proposed that action **correctly several times** in Review mode
-   (no false root causes, correct target resource).
-2. The action is **low-blast-radius and reversible** (e.g. *restart a single
-   deployment in `shopdemo`*, *scale a stateless deployment within set bounds*).
-3. You've set **guardrails**: max replicas, allowed namespaces (`shopdemo` only),
-   rate limits (e.g. no more than 1 auto-restart per 10 min), and a kill switch.
-4. There's an **audit trail + rollback** path you've tested.
+### 9b. Network integration — keep egress inside your VNet
 
-**Safe-to-automate examples (this demo):**
-- Restart a crash-looping pod in `shopdemo`.
-- Scale the stateless `gateway`/`orders` deployments within `min=2,max=6`.
-- Acknowledge a known, self-resolving alert.
+By default the agent can reach any endpoint on the internet — fine for dev/test,
+but a **data-exfiltration** and **prompt-injection** risk for production. **Virtual
+network integration** places the agent inside your VNet so that **all non-platform
+outbound traffic flows through your network** and is subject to your **L4/L7
+firewalls, custom DNS, NSG rules, and traffic logging** — exactly like any other
+workload on the subnet.
 
-**Keep in Review (never auto) — examples:**
-- Rolling back to a different image/commit (changes what code is live).
-- Anything touching the `mysql` StatefulSet or its PVC (data loss risk).
-- Editing secrets, ConfigMaps, or network/ingress.
-- Deleting any resource.
+Three network control modes:
 
-How to change it: Agent → **Settings** → **Mode**, or per-action under
-**Policies → Autonomous actions** → enable the specific action type and set its
-guardrails. You can revert to full Review at any time with the **kill switch**.
-
----
-
-## 10. Handling an incident (end-to-end)
-
-This walks through the demo's injected fault: the checkout path runs a slow DB
-query and intermittently throws, producing ~600 ms latency and HTTP 500s.
-
-### 10a. Trigger
-One of the alert rules fires and notifies the `shop-sre-ag` action group:
-
-| Alert rule | Condition | Severity |
+| Mode | What it does | Use for |
 |---|---|---|
-| `checkout-5xx-rate` | checkout returns ≥ 5 HTTP 5xx in 5 min | Sev 1 |
-| `checkout-high-latency` | checkout p95 > 800 ms | Sev 2 |
-| `shop-pod-restarts` | a `shopdemo` pod restarts > 3× | Sev 2 |
+| **Unrestricted** (default) | No restrictions; reaches any endpoint | Dev/test, non-sensitive workloads |
+| **Limited** | Wildcard URL allow-list | Host-level control without full VNet routing |
+| **Azure VNet** | All non-platform egress routes through your VNet | Production needing egress control + audit |
 
-The action group hands the alert to the SRE Agent, which **opens an incident**.
+For alashopify you'd pick **Azure VNet** so the agent reaches `ala-shopify-logs`,
+`ala-shopify-ai`, the AKS API, and MySQL over your own network path. It requires a
+**dedicated `/28`+ subnet delegated to `Microsoft.App/environments`** in the same
+region as the agent.
 
-### 10b. What the agent does automatically (Review mode)
-1. **Triages** the alert and assembles context: which service, since when, blast
-   radius.
-2. **Investigates** read-only:
-   - Queries App Insights for the slow operation and the exception type.
-   - Walks the distributed trace: request → `orders` → MySQL dependency span.
-   - Runs read-only `kubectl` (`get pods`, `logs`, `describe`) in `shopdemo`.
-3. **Correlates with code**: reads the `sre-demo.deploy/branch` +
-   `sre-demo.deploy/commit` annotations on the `orders` deployment, maps them to
-   the GitHub commit, and identifies the changed code on that branch.
-4. **Writes a root-cause analysis** with evidence (timestamps, the dominant
-   span, the failing query/exception, the suspect commit).
+Limitations to call out (preview):
+- **Egress only** — VNet integration controls *outbound* traffic. **Inbound access
+  to the agent is still from the internet**; private inbound endpoints aren't
+  supported.
+- **Platform services always bypass** — orchestration, model endpoints, and
+  telemetry always route through Microsoft's managed infrastructure, not your VNet.
+- **Connectors don't route through the VNet** in preview — Teams/Outlook connector
+  traffic goes over the public internet.
+- **Public services** (GitHub, PyPI/npm/NuGet, container registries) have no Azure
+  service tags, so they need either an **infra-network bypass toggle** or **FQDN
+  firewall rules**. Treat bypass toggles as transitional; you can lock them down
+  with **Azure Policy**.
+- **Private AKS clusters** run `kubectl` via AKS `command invoke` (managed identity
+  only, no OBO; 60s / 512 KB limits).
 
-### 10c. What needs your approval (Review mode)
-The agent **proposes** remediation and waits:
-- *Immediate mitigation* — e.g. roll back `orders` to the last-known-good
-  image/commit, **or** scale out to dilute impact.
-- *Durable fix* — a **draft PR** against the suspect branch with the proposed
-  code change and a written explanation.
+See [Azure SRE Agent network integration](https://learn.microsoft.com/en-us/azure/sre-agent/network-integration).
 
-You review the proposal, then **Approve** (agent executes the approved step) or
-**Reject** (and optionally tell it what to do instead). Every step is logged.
+### 9c. Access control — who can do what
 
-### 10d. Verification & close
-After an approved mitigation the agent re-checks the same signals (5xx rate, p95)
-and confirms recovery, then summarizes the timeline and closes the incident.
+Access control works across **three layers**:
 
-### 10e. Where to watch it
-- **Azure portal → Monitor → Alerts** — the fired alerts.
-- **Agent → Incidents** — the live investigation timeline and proposed actions.
-- **Teams incident channel** — proposals/approvals in-line.
-- **GitHub** `raddaoui/alashopify` — any issue/PR the agent opened.
+| Layer | Controls | Set where |
+|---|---|---|
+| **User roles** | What *people* can do with the agent | Azure IAM on the agent resource |
+| **Run modes** | Whether the agent *asks before acting* | Per response plan (§7) and task (§8) |
+| **Agent permissions** | What the agent can touch on Azure | RBAC on resource groups (§9d) |
 
-> **Could this incident be handled autonomously?** The *mitigation* (restart /
-> scale within `shopdemo`) is a good autonomous candidate once proven (§9). The
-> *rollback to a different commit* and the *code-fix PR merge* should stay in
-> Review — they change what code runs in production.
+There are **three built-in user roles** — assign least privilege:
+
+| Role | Can | Who should have it (alashopify) |
+|---|---|---|
+| **SRE Agent Reader** | View threads, logs, incidents (read-only) | Auditors, compliance, stakeholders who just need visibility |
+| **SRE Agent Standard User** | Chat, run diagnostics, **request** actions | L1/L2 engineers, first responders |
+| **SRE Agent Administrator** | Approve actions, manage connectors/resources, delete, authorize OBO | SRE managers, cloud admins, incident commanders |
+
+The user who creates the agent is automatically an **Administrator**. Enforcement
+is at the backend — an action beyond your role fails with a `403` regardless of
+what the UI shows. Assign roles in **Access control (IAM) → Add role assignment**
+on the agent resource.
+
+See [User roles and permissions](https://learn.microsoft.com/en-us/azure/sre-agent/user-roles).
+
+### 9d. Agent permissions — what the agent itself can access
+
+Separate from *user* roles, the agent acts through its **managed identity**, and
+you pick a **permission level** at creation that maps to RBAC roles on the resource
+groups you select:
+
+| Level | Roles granted | Behavior |
+|---|---|---|
+| **Reader** *(start here)* | Core monitoring readers + resource-type reader roles | Read-only diagnostics; prompts for temporary elevation (OBO) to act |
+| **Privileged** | Core monitoring + resource-type **contributor** roles | Can take approved actions directly |
+
+**Preconfigured roles are always assigned** regardless of level: **Reader**, **Log
+Analytics Reader**, and **Monitoring Reader** on the resource group, plus
+**Monitoring Contributor** on the subscription (so the agent can acknowledge/close
+Azure Monitor alerts). When the managed identity lacks a permission, the agent
+falls back to **on-behalf-of (OBO)** — it prompts an Administrator to authorize
+with their credentials for that one operation, then reverts to the managed
+identity. Credentials aren't cached.
+
+See [Agent permissions](https://learn.microsoft.com/en-us/azure/sre-agent/permissions).
+
+### 9e. Agent identity & what gets created
+
+Creating the agent provisions **two managed identities**:
+
+| Identity | What it is | What you do with it |
+|---|---|---|
+| **User-assigned (UAMI)** | A standalone `id-*` identity in your resource group | **Manage this** — assign RBAC, select it for connectors |
+| **System-assigned** | Internal identity for the agent's infrastructure | Nothing — managed automatically |
+
+The **UAMI** is the one you work with: it's what you grant Reader/Privileged to
+(§9d) and what you pick from the managed-identity dropdown when wiring up
+connectors (Teams/Outlook, Azure DevOps, Kusto, MCP). Find it under **Settings →
+Azure settings → Go to Identity**, or as the `id-*` resource in `ala-shopify-rg`
+(copy its **Object (principal) ID** for role assignments).
+
+See [Agent identity](https://learn.microsoft.com/en-us/azure/sre-agent/agent-identity).
+
+### 9f. Memory & knowledge — how the agent gets smarter
+
+The agent **learns from every conversation** with no manual training. About 30
+minutes after a thread goes quiet, it extracts a **session insight** — symptoms,
+the resolution that worked, the root cause, and pitfalls to avoid — and indexes
+it. When investigating, it **prioritizes past sessions on the same resource** (e.g.
+prior `orders`-deployment incidents surface first).
+
+Knowledge is **organized semantically by topic**, not chronologically, under
+`memories/synthesizedKnowledge/`. A small `overview.md` (~2,000 chars) is loaded
+into the **system prompt** at the start of every conversation and links out to
+topic files the agent builds and merges over time:
+
+| File | Contents |
+|---|---|
+| `overview.md` | Service summary + index of topic files (always loaded) |
+| `team.md` | Team members, roles, expertise |
+| `architecture.md` | Components, connections, environments |
+| `logs.md` | Log sources, tables, key fields, useful queries |
+| `deployment.md` | Pipeline details, version lookup, rollback steps |
+| `debugging.md` | Common issues, troubleshooting, runbook links |
+
+You can steer it: `#remember` / `#retrieve` / `#forget` for discrete facts, or ask
+it to *"save this to your knowledge…"* to write a topic file. These are the same
+files §4 produced during onboarding — they persist across sessions.
+
+See [Memory and knowledge](https://learn.microsoft.com/en-us/azure/sre-agent/memory).
+
+### 9g. Pricing & billing — how you pay
+
+Billing is metered in **Azure Agent Units (AAUs)** and is the sum of two flows:
+
+| Flow | What it is | Cost shape |
+|---|---|---|
+| **Always-on flow** | Baseline cost of keeping the agent provisioned and available | **Fixed** — 4 AAUs per agent-hour, from creation until you delete it |
+| **Active flow** | Consumed **only while the agent is actively processing** (chat, scheduled tasks, incident response, async work) | **Variable** — based on LLM tokens, metered at your model's AAU rate |
+
+The two talking points:
+- **Always-on is just "the lights on."** It doesn't mean the agent is working —
+  it's the fixed cost of being provisioned, and it continues even if you **Stop**
+  the agent (only **Delete** stops all billing). One agent can monitor many
+  resources, so consolidating workloads keeps always-on low.
+- **Active flow is pay-for-work.** You're billed only for processing time — **time
+  spent waiting for your approval isn't billed**. It resets monthly, and you can
+  cap it with a **monthly AAU allocation** in **Settings → Agent consumption**
+  (when the cap is hit, active flow pauses until next month; always-on continues).
+
+Keep costs down by adding context/knowledge (fewer wasted tokens), filtering
+incidents with response plans, batching with scheduled tasks, and stopping idle
+agents.
+
+See [Pricing and billing](https://learn.microsoft.com/en-us/azure/sre-agent/pricing-billing).
 
 ---
 
-## 11. Quick reference
+## 10. Quick reference
 
 | Item | Value |
 |---|---|
