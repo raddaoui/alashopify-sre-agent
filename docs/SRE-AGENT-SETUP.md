@@ -531,7 +531,7 @@ A workflow chains three building blocks:
 alashopify's checkout traffic ramps every morning. Instead of an engineer
 eyeballing dashboards before the rush, schedule the agent to run a readiness
 check **before peak hours** — verify capacity, surface overnight error trends,
-proactively scale the stateless tier, and post a go/no-go summary to the team.
+proactively scale the stateless tier, and post a health report to the team.
 
 #### 8a. Add a notification connector
 
@@ -554,8 +554,8 @@ The connector shows **Connected**.
    > the last 12 hours and compare them to last week's baseline, and confirm no
    > pod restarted more than 3 times overnight. If load is trending up or
    > capacity looks tight ahead of peak hours, scale the stateless `gateway` and
-   > `orders` deployments within `min=2,max=6`. Summarize readiness as a go/no-go
-   > and send it to the team."
+   > `orders` deployments within `min=2,max=6`. Summarize the overall health and
+   > send the report to the team."
 
 4. **Choose tools** → select the notification tool from your connector →
    **Create**. The custom agent appears as a node on the canvas.
