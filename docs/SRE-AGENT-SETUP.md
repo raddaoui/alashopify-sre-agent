@@ -531,7 +531,7 @@ A workflow chains three building blocks:
 alashopify's checkout traffic ramps every morning. Instead of an engineer
 eyeballing dashboards before the rush, schedule the agent to run a readiness
 check **before peak hours** — verify capacity, surface overnight error trends,
-proactively scale the stateless tier, and post a health report to the team.
+proactively scale the stateless tier, and email a health report to the team.
 
 #### 8a. Add a notification connector
 
@@ -546,18 +546,16 @@ The connector shows **Connected**.
 
 1. Agent → **Builder → Agent Canvas → Create → Custom Agent**.
 2. **Name** — `store-readiness-reporter`.
-3. **Instructions**, e.g.:
+3. **Instructions** — keep these brief; the per-run "what to check" detail goes
+   in the scheduled task (§8c). For example:
 
-   > "You are the alashopify store-readiness reporter. Each morning, check the
-   > `shopdemo` namespace in `ala-shopify-rg`: confirm every deployment has its
-   > desired replicas Ready, review the checkout p95 latency and 5xx rate over
-   > the last 12 hours and compare them to last week's baseline, and confirm no
-   > pod restarted more than 3 times overnight. If load is trending up or
-   > capacity looks tight ahead of peak hours, scale the stateless `gateway` and
-   > `orders` deployments within `min=2,max=6`. Summarize the overall health and
-   > send the report to the team."
+   > "You are the alashopify store-readiness reporter. Check Azure resource
+   > health for the app, determine if any capacity is needed, summarize the
+   > overall health, and email the report to the team."
 
-4. **Choose tools** → select the notification tool from your connector →
+4. **Choose skills** → select **`aks_general`** so the agent can inspect the AKS
+   cluster, deployments, and pods.
+5. **Choose tools** → select the notification tool from your connector →
    **Create**. The custom agent appears as a node on the canvas.
 
 #### 8c. Schedule the daily task
@@ -569,9 +567,19 @@ The connector shows **Connected**.
    | Field | Value |
    |---|---|
    | **Task name** | `daily-store-readiness` |
-   | **Task details** | reuse the instructions above (or **Refine with AI**) |
+   | **Task details** | the per-run checks (below) |
    | **Frequency** | **Daily** |
    | **Time of day** | **7:00 AM** (before the morning peak) |
+
+   For **Task details**, spell out exactly what to do each run:
+
+   > "Check the `shopdemo` namespace in `ala-shopify-rg`: confirm every
+   > deployment has its desired replicas Ready, review the checkout p95 latency
+   > and 5xx rate over the last 12 hours and compare them to last week's
+   > baseline, and confirm no pod restarted more than 3 times overnight. If load
+   > is trending up or capacity looks tight ahead of peak hours, scale the
+   > stateless `gateway` and `orders` deployments within `min=2,max=6`.
+   > Summarize findings and actions taken and email the report to the team."
 
 3. **Agent autonomy** — start in **Review** so the proactive scale-up is proposed
    for approval; promote to **Autonomous** once you trust it (§9).
@@ -592,7 +600,6 @@ The connector shows **Connected**.
 | Task | Frequency | What it does |
 |---|---|---|
 | `weekly-reliability-report` | Weekly (Mon 8 AM) | Availability, p95, top errors, incidents handled — emailed to stakeholders |
-| `nightly-deploy-drift` | Daily (2 AM) | Compares the live `sre-demo.deploy/commit` annotation to `main` and flags drift |
 | `hourly-health-scan` | Cron `0 * * * *` | Quick replica/error/restart scan; opens an incident only if something's wrong |
 
 > Scheduled runs honor the same modes as everything else: in **Review** a task
