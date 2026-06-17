@@ -86,7 +86,7 @@ context to connect:
 - **Full setup** — recommended for real investigations (adds more context).
 
 Choose **Full setup**, then connect the sources below. Once setup is done, set
-the agent to **Review mode** before doing anything else (see §8).
+the agent to **Review mode** before doing anything else (see §9).
 
 ### 3a. Connect code
 
@@ -117,7 +117,7 @@ read-only (Reader)** access for Review mode.
    - **Reader** — *read-only access. Agent can view resources and metrics but
      cannot make changes.* **Choose this for Review mode.**
    - **Privileged** — read **and** write access (diagnose + perform
-     remediation). Don't choose this yet — see §8.
+     remediation). Don't choose this yet — see §9.
 4. The wizard lists the **roles to be granted** for the level you picked
    (e.g. Reader, Monitoring Reader, Log Analytics Reader). Required roles are
    **granted automatically** when you add the resource group — you don't assign
@@ -506,11 +506,103 @@ By default the agent has **Reader** and can only **propose** fixes. To let it
 **write** on its managed identity — scope it to the resource group
 `ala-shopify-rg` (§3c). Guardrails are always enforced: `delete`/`remove` and
 `az keyvault` commands are blocked, and resources with **ReadOnly** management
-locks can't be modified. Choose how much it does on its own in §8.
+locks can't be modified. Choose how much it does on its own in §9.
 
 ---
 
-## 8. Operating modes — Review vs Autonomous
+## 8. Scheduled tasks — automate recurring workflows
+
+Incident response (§7) is *reactive* — it kicks in after an alert fires.
+Scheduled tasks are *proactive*: the agent runs a check on a recurrence, reasons
+over the results against past runs, and catches trends **before** they breach a
+threshold and page someone. Each run is a full agent thread (plan → query →
+reason → summarize), not a dumb cron script.
+
+A workflow chains three building blocks:
+
+| Building block | What it is | For alashopify |
+|---|---|---|
+| **Connector** | Access to an external service | Teams / Outlook to send the report |
+| **Custom agent** | A specialized worker with specific tools | `store-readiness-reporter` |
+| **Scheduled task** | Triggers the custom agent on a recurrence | "Every day at 7 AM, check readiness and send a summary" |
+
+### Real-world use case: daily pre-peak store-readiness check
+
+alashopify's checkout traffic ramps every morning. Instead of an engineer
+eyeballing dashboards before the rush, schedule the agent to run a readiness
+check **before peak hours** — verify capacity, surface overnight error trends,
+proactively scale the stateless tier, and post a go/no-go summary to the team.
+
+#### 8a. Add a notification connector
+
+1. Agent → **Builder → Connectors → Add connector**.
+2. Pick **Teams**, or **Outlook Tools** → **Send email (Office 365 Outlook)**.
+3. Authorize sign-in, then choose a **user-assigned managed identity** (reusable
+   across connectors) → **Add connector**.
+
+The connector shows **Connected**.
+
+#### 8b. Create the custom agent
+
+1. Agent → **Builder → Agent Canvas → Create → Custom Agent**.
+2. **Name** — `store-readiness-reporter`.
+3. **Instructions**, e.g.:
+
+   > "You are the alashopify store-readiness reporter. Each morning, check the
+   > `shopdemo` namespace in `ala-shopify-rg`: confirm every deployment has its
+   > desired replicas Ready, review the checkout p95 latency and 5xx rate over
+   > the last 12 hours and compare them to last week's baseline, and confirm no
+   > pod restarted more than 3 times overnight. If load is trending up or
+   > capacity looks tight ahead of peak hours, scale the stateless `gateway` and
+   > `orders` deployments within `min=2,max=6`. Summarize readiness as a go/no-go
+   > and send it to the team."
+
+4. **Choose tools** → select the notification tool from your connector →
+   **Create**. The custom agent appears as a node on the canvas.
+
+#### 8c. Schedule the daily task
+
+1. On the canvas, select **+** on the `store-readiness-reporter` node →
+   **Add scheduled task** (this preselects it as the responder).
+2. Fill in:
+
+   | Field | Value |
+   |---|---|
+   | **Task name** | `daily-store-readiness` |
+   | **Task details** | reuse the instructions above (or **Refine with AI**) |
+   | **Frequency** | **Daily** |
+   | **Time of day** | **7:00 AM** (before the morning peak) |
+
+3. **Agent autonomy** — start in **Review** so the proactive scale-up is proposed
+   for approval; promote to **Autonomous** once you trust it (§9).
+4. **Create task**. It appears on the canvas as **Scheduled task → Custom agent →
+   Tool**, and in the **Scheduled tasks** list with status **On** and a **Next
+   run** time.
+
+#### 8d. Test and verify
+
+- **Scheduled tasks → check the task → Run task now** to trigger it immediately.
+- Select the **task name** to open execution history; each run is a chat thread
+  showing the agent's plan, the tools it called, the metrics it compared to
+  baseline, and the report it sent.
+- After 3 consecutive failed runs the task status flips to **Failed**.
+
+### Other useful schedules
+
+| Task | Frequency | What it does |
+|---|---|---|
+| `weekly-reliability-report` | Weekly (Mon 8 AM) | Availability, p95, top errors, incidents handled — emailed to stakeholders |
+| `nightly-deploy-drift` | Daily (2 AM) | Compares the live `sre-demo.deploy/commit` annotation to `main` and flags drift |
+| `hourly-health-scan` | Cron `0 * * * *` | Quick replica/error/restart scan; opens an incident only if something's wrong |
+
+> Scheduled runs honor the same modes as everything else: in **Review** a task
+> that finds a problem **proposes** a fix and waits; promote a task to
+> **Autonomous** only for the narrow, reversible actions in §9 (e.g. the morning
+> pre-peak scale-up).
+
+---
+
+## 9. Operating modes — Review vs Autonomous
 
 | | **Review mode** (start here) | **Autonomous mode** (promote later) |
 |---|---|---|
@@ -546,38 +638,6 @@ Promote **one narrow action type at a time**, only after it clears this bar:
 How to change it: Agent → **Settings** → **Mode**, or per-action under
 **Policies → Autonomous actions** → enable the specific action type and set its
 guardrails. You can revert to full Review at any time with the **kill switch**.
-
----
-
-## 9. Scheduling a task
-
-Use schedules for proactive checks (not just reactive alerts).
-
-1. Agent → **Tasks** (or **Schedules**) → **New scheduled task**.
-2. **Name** — `shopdemo-hourly-health`.
-3. **Trigger** — recurrence, e.g. every **1 hour** (cron `0 * * * *`).
-4. **Scope** — resource group `ala-shopify-rg`, namespace `shopdemo`.
-5. **Instruction / prompt** — what you want it to do, e.g.:
-
-   > "Check the health of the shopdemo namespace. Verify all deployments have
-   > their desired replicas Ready, query App Insights for the checkout p95
-   > latency and 5xx rate over the last hour, and confirm no pods restarted more
-   > than 3 times. If everything is healthy, post a one-line green summary. If
-   > not, open an incident, perform root-cause analysis, and **propose** (do not
-   > execute) a remediation for approval."
-
-6. **Mode for this task** — **Review** (propose only). Leave autonomous off.
-7. **Notifications** — post results to the Teams incident channel.
-8. **Save**.
-
-Other useful schedules:
-- `nightly-cost-and-drift` — daily: report deployment image/commit drift vs.
-  `main` using the `sre-demo.deploy/commit` annotations.
-- `pre-demo-readiness` — on-demand button you run before a demo.
-
-> In Review mode a scheduled run that finds a problem will **propose** a fix and
-> wait. Promote a schedule to autonomous only for the narrow, reversible actions
-> in §8 (e.g. auto-restart a crash-looped pod found by the hourly check).
 
 ---
 
@@ -631,7 +691,7 @@ and confirms recovery, then summarizes the timeline and closes the incident.
 - **GitHub** `raddaoui/alashopify` — any issue/PR the agent opened.
 
 > **Could this incident be handled autonomously?** The *mitigation* (restart /
-> scale within `shopdemo`) is a good autonomous candidate once proven (§8). The
+> scale within `shopdemo`) is a good autonomous candidate once proven (§9). The
 > *rollback to a different commit* and the *code-fix PR merge* should stay in
 > Review — they change what code runs in production.
 
